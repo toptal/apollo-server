@@ -121,7 +121,7 @@ export interface EngineReportingOptions<TContext> {
    * By default Apollo server will report all queries to Graph Manager.
    * If you would like to disable reporting and tracing for certain queries you can give a function that takes in
    * graphqlRequestContext. The return value of the function will be used to determine if any stats or tracing information will be collected for the query.
-   * Always returning false will act similar to turning off reporting and no instrumentation will take place.
+   * Always returning false will behave similarly to turning off reporting and no instrumentation will take place.
    *
    */
   shouldReportQuery?: (request: GraphQLRequestContext) => boolean;
