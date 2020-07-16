@@ -39,7 +39,7 @@ interface ExecutionContext<TContext> {
 }
 
 export async function executeQueryPlan<TContext>(
-  queryPlan: QueryPlan,
+queryPlan: QueryPlan,
   serviceMap: ServiceMap,
   requestContext: GraphQLRequestContext<TContext>,
   operationContext: OperationContext,

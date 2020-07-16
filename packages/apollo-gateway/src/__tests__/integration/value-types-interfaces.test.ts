@@ -45,6 +45,9 @@ type Video = { id: String; videoData: String; url: String };
 const videoService: ServiceDefinitionModule = {
   name: 'videoService',
   typeDefs: gql`
+    interface WebResource {
+      url: String
+    }
     type Video @key(fields: "id") {
       id: ID!
       videoData: String
@@ -114,7 +117,6 @@ it('handles unions from different services which implements value interfaces', a
     videoService,
     audioService,
   ]);
-  expect(errors).toBeUndefined();
 
   expect(queryPlan).toMatchInlineSnapshot(`
     QueryPlan {
@@ -170,6 +172,7 @@ it('handles unions from different services which implements value interfaces', a
       },
     }
   `);
+  expect(errors).toBeUndefined();
   expect(data).toEqual({
     nodes: [
       {
