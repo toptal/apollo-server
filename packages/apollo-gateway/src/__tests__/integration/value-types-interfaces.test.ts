@@ -5,8 +5,10 @@ import { execute, ServiceDefinitionModule } from '../execution-utils';
 expect.addSnapshotSerializer(astSerializer);
 expect.addSnapshotSerializer(queryPlanSerializer);
 
-const videos = [{ id: 'Video/1', url: 'https://foobar.com/videos/1' }];
-const audios = [{ id: 'Audio/1', url: 'https://foobar.com/audios/1' }];
+const videos = [{ id: 'Video/1', videoData: 'videoData' }];
+const audios = [
+  { id: 'Audio/1', audioData: 'audioData', url: 'https://foobar.com/audios/1' },
+];
 
 const nodeService: ServiceDefinitionModule = {
   name: 'nodeService',
@@ -28,27 +30,24 @@ const nodeService: ServiceDefinitionModule = {
   resolvers: {
     Query: {
       nodes(_, { ids }) {
-        return ids.map(id => ({ id, type: id.split('/')[0] }));
-      }
+        return ids.map((id: string) => ({ id, type: id.split('/')[0] }));
+      },
     },
     Node: {
       __resolveType(object) {
         return object.type;
       },
-    }
-  }
+    },
+  },
 };
 
-type Video = { id: String, url: String }
+type Video = { id: String; videoData: String; url: String };
 const videoService: ServiceDefinitionModule = {
   name: 'videoService',
   typeDefs: gql`
-    interface WebResource {
-      url: String
-    }
-    type Video implements WebResource @key(fields: "id") {
+    type Video @key(fields: "id") {
       id: ID!
-      url: String
+      videoData: String
     }
   `,
   resolvers: {
@@ -59,23 +58,25 @@ const videoService: ServiceDefinitionModule = {
       id(object: Video) {
         return object.id;
       },
-      url(object: Video) {
-        return object.url;
+
+      videoData(object: Video) {
+        return object.videoData;
       },
     },
   },
 };
 
-type Audio = { id: String, url: String }
+type Audio = { id: String; audioData: String; url: String };
 const audioService: ServiceDefinitionModule = {
   name: 'audioService',
   typeDefs: gql`
     interface WebResource {
       url: String
     }
-    type Audio @key(fields: "id") {
+    type Audio implements WebResource @key(fields: "id") {
       id: ID!
       url: String
+      audioData: String
     }
   `,
   resolvers: {
@@ -89,6 +90,9 @@ const audioService: ServiceDefinitionModule = {
       url(object: Audio) {
         return object.url;
       },
+      audioData(object: Audio) {
+        return object.audioData;
+      },
     },
   },
 };
@@ -97,13 +101,14 @@ it('handles unions from different services which implements value interfaces', a
   const query = `#graphql
     query q($ids: [ID!]!) {
       nodes(ids: $ids) {
-        ... on WebResource {
-          url
-        }
+        ... on Node { id }
+        ... on Video { videoData }
+        ... on Audio { audioData }
+        ... on WebResource { url }
       }
     }
   `;
-  const variables = {ids: [videos[0].id, audios[0].id]}
+  const variables = { ids: [videos[0].id, audios[0].id] };
   const { queryPlan, errors, data } = await execute({ query, variables }, [
     nodeService,
     videoService,
@@ -116,15 +121,15 @@ it('handles unions from different services which implements value interfaces', a
       Sequence {
         Fetch(service: "nodeService") {
           {
-            nodes {
+            nodes(ids: $ids) {
               __typename
               ... on Video {
-                __typename
                 id
+                __typename
               }
               ... on Audio {
-                __typename
                 id
+                __typename
               }
             }
           }
@@ -140,7 +145,7 @@ it('handles unions from different services which implements value interfaces', a
               } =>
               {
                 ... on Video {
-                  url
+                  videoData
                 }
               }
             },
@@ -155,7 +160,8 @@ it('handles unions from different services which implements value interfaces', a
               } =>
               {
                 ... on Audio {
-                  url: url
+                  audioData
+                  url
                 }
               }
             },
@@ -166,8 +172,15 @@ it('handles unions from different services which implements value interfaces', a
   `);
   expect(data).toEqual({
     nodes: [
-      { url: 'https://foobar.com/videos/1' },
-      { url: 'https://foobar.com/audios/1' },
+      {
+        id: 'Video/1',
+        videoData: 'videoData',
+      },
+      {
+        id: 'Audio/1',
+        audioData: 'audioData',
+        url: 'https://foobar.com/audios/1',
+      },
     ],
   });
 });
