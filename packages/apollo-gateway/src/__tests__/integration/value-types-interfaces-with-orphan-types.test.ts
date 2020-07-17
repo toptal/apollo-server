@@ -50,7 +50,7 @@ const audioService: ServiceDefinitionModule = {
   },
 };
 
-it('handles unions from different services which implements value interfaces', async () => {
+it('handles value types interfaces which have implementation with orphan types in different schema', async () => {
   const query = `#graphql
     query q {
       error {

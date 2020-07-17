@@ -100,7 +100,7 @@ const audioService: ServiceDefinitionModule = {
   },
 };
 
-it('handles unions from different services which implements value interfaces', async () => {
+it('handles value type interfaces that defined not in all services', async () => {
   const query = `#graphql
     query q($ids: [ID!]!) {
       nodes(ids: $ids) {
