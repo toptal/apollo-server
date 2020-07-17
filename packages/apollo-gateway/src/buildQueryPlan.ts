@@ -38,6 +38,7 @@ import {
   matchesField,
   selectionSetFromFieldSet,
   Scope,
+  isEmpty as isEmptyFieldSet
 } from './FieldSet';
 import {
   FetchNode,
@@ -429,16 +430,13 @@ function splitSubfields(
       ) {
         return parentGroup;
       } else {
-        const emptyKeyFields = (keyFields: FieldSet) => {
-          return keyFields.length === 0 || (keyFields.length === 1 && keyFields[0].fieldDef.name === '__typename');
-        }
         // We need to fetch the key fields from the parent group first, and then
         // use a dependent fetch from the owning service.
         let keyFields = context.getKeyFields({
           parentType,
           serviceName: parentGroup.serviceName,
         });
-        if (emptyKeyFields(keyFields)) {
+        if (isEmptyFieldSet(keyFields)) {
           // Only __typename key found.
           // In some cases, the parent group does not have any @key directives.
           // Fall back to owning group's keys
@@ -447,7 +445,7 @@ function splitSubfields(
             serviceName: owningService,
           });
 
-          if(emptyKeyFields(keyFields)) { return; }
+          if(isEmptyFieldSet(keyFields)) { return null; }
         }
         return parentGroup.dependentGroupForService(owningService, keyFields);
       }
@@ -513,7 +511,7 @@ function splitFields(
   context: QueryPlanningContext,
   path: ResponsePath,
   fields: FieldSet,
-  groupForField: (field: Field<GraphQLObjectType>) => FetchGroup | undefined,
+  groupForField: (field: Field<GraphQLObjectType>) => FetchGroup | null,
 ) {
   for (const fieldsForResponseName of groupByResponseName(fields).values()) {
     for (const [parentType, fieldsForParentType] of groupByParentType(fieldsForResponseName)) {

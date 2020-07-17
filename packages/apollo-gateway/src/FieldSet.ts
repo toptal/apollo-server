@@ -46,6 +46,11 @@ export function matchesField(field: Field) {
   };
 }
 
+export const isEmpty = (keyFields: FieldSet) => (
+  keyFields.length === 0 ||
+    (keyFields.length === 1 && keyFields[0].fieldDef.name === '__typename')
+);
+
 export const groupByResponseName = groupBy<Field, string>(field =>
   getResponseName(field.fieldNode)
 );
