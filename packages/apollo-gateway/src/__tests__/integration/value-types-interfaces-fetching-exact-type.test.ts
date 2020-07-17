@@ -64,18 +64,18 @@ it('handles unions from different services which implements value interfaces', a
     audioService,
   ]);
 
-  expect(errors).toBeUndefined();
   expect(queryPlan).toMatchInlineSnapshot(`
-    QueryPlan {
-      Fetch(service: "audioService") {
-        {
-          error {
-            __typename
-            code
-          }
+  QueryPlan {
+    Fetch(service: "audioService") {
+      {
+        error {
+          __typename
+          code
         }
-      },
-    }
+      }
+    },
+  }
   `);
+  expect(errors).toBeUndefined();
   expect(data).toEqual({error: { code: 'audioErrorCode' }});
 });
