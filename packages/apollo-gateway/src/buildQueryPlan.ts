@@ -429,18 +429,16 @@ function splitSubfields(
       ) {
         return parentGroup;
       } else {
+        const emptyKeyFields = (keyFields: FieldSet) => {
+          return keyFields.length === 0 || (keyFields.length === 1 && keyFields[0].fieldDef.name === '__typename');
+        }
         // We need to fetch the key fields from the parent group first, and then
         // use a dependent fetch from the owning service.
         let keyFields = context.getKeyFields({
           parentType,
           serviceName: parentGroup.serviceName,
         });
-        if (
-          keyFields.length === 0 ||
-          (keyFields.length === 1 &&
-            keyFields[0].fieldDef.name === '__typename')
-        ) {
-          return;
+        if (emptyKeyFields(keyFields)) {
           // Only __typename key found.
           // In some cases, the parent group does not have any @key directives.
           // Fall back to owning group's keys
@@ -448,6 +446,8 @@ function splitSubfields(
             parentType,
             serviceName: owningService,
           });
+
+          if(emptyKeyFields(keyFields)) { return; }
         }
         return parentGroup.dependentGroupForService(owningService, keyFields);
       }
