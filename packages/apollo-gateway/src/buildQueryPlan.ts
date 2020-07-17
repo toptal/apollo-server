@@ -380,7 +380,6 @@ function splitRootFieldsSerially(
         fieldNode,
       );
     }
-
     return groupForField(owningService);
   });
 
@@ -441,6 +440,7 @@ function splitSubfields(
           (keyFields.length === 1 &&
             keyFields[0].fieldDef.name === '__typename')
         ) {
+          return;
           // Only __typename key found.
           // In some cases, the parent group does not have any @key directives.
           // Fall back to owning group's keys
@@ -513,7 +513,7 @@ function splitFields(
   context: QueryPlanningContext,
   path: ResponsePath,
   fields: FieldSet,
-  groupForField: (field: Field<GraphQLObjectType>) => FetchGroup,
+  groupForField: (field: Field<GraphQLObjectType>) => FetchGroup | undefined,
 ) {
   for (const fieldsForResponseName of groupByResponseName(fields).values()) {
     for (const [parentType, fieldsForParentType] of groupByParentType(fieldsForResponseName)) {
@@ -547,15 +547,17 @@ function splitFields(
         // If parent type is an object type, we can directly look for the right
         // group.
         const group = groupForField(field as Field<GraphQLObjectType>);
-        group.fields.push(
-          completeField(
-            context,
-            scope as Scope<typeof parentType>,
-            group,
-            path,
-            fieldsForParentType,
-          ),
-        );
+        if (group) {
+          group.fields.push(
+            completeField(
+              context,
+              scope as Scope<typeof parentType>,
+              group,
+              path,
+              fieldsForParentType,
+            ),
+          );
+        }
       } else {
         // For interfaces however, we need to look at all possible runtime types.
 
@@ -594,9 +596,11 @@ function splitFields(
             );
             if (allPossibleTypesAreLocal) {
               const group = groupForField(field as Field<GraphQLObjectType>);
-              group.fields.push(
-                completeField(context, scope, group, path, fieldsForResponseName)
-              );
+              if (group) {
+                group.fields.push(
+                  completeField(context, scope, group, path, fieldsForResponseName)
+                );
+              }
               continue;
             }
           }
@@ -614,14 +618,12 @@ function splitFields(
             runtimeParentType,
             field.fieldNode,
           );
-          groupsByRuntimeParentTypes.add(
-            groupForField({
-              scope: context.newScope(runtimeParentType, scope),
-              fieldNode: field.fieldNode,
-              fieldDef,
-            }),
-            runtimeParentType,
-          );
+          const group = groupForField({
+            scope: context.newScope(runtimeParentType, scope),
+            fieldNode: field.fieldNode,
+            fieldDef,
+          });
+          if (group) { groupsByRuntimeParentTypes.add(group, runtimeParentType, ); }
         }
 
         // We add the field separately for each runtime parent type.

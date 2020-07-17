@@ -41,7 +41,7 @@ const audioService: ServiceDefinitionModule = {
       error(_) {
         return { code: audio.errorCode };
       },
-    }
+    },
     Error: {
       __resolveType(_) {
         return 'AudioError';
@@ -65,17 +65,19 @@ it('handles unions from different services which implements value interfaces', a
   ]);
 
   expect(queryPlan).toMatchInlineSnapshot(`
-  QueryPlan {
-    Fetch(service: "audioService") {
-      {
-        error {
-          __typename
-          code
+    QueryPlan {
+      Fetch(service: "audioService") {
+        {
+          error {
+            __typename
+            ... on AudioError {
+              code
+            }
+          }
         }
-      }
-    },
-  }
+      },
+    }
   `);
   expect(errors).toBeUndefined();
-  expect(data).toEqual({error: { code: 'audioErrorCode' }});
+  expect(data).toEqual({ error: { code: 'audioErrorCode' } });
 });
