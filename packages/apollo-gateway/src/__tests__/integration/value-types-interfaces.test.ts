@@ -217,8 +217,8 @@ const nodeService: ServiceDefinitionModule = {
   `,
   resolvers: {
     Query: {
-      nodes(_, { ids }) {
-        return ids.map((id: string) => ({ id, type: id.split('/')[0] }));
+      node(_, { id }) {
+        return { id, type: id.split('/')[0] };
       },
     },
     Node: {
@@ -6157,27 +6157,29 @@ it('handles value type interfaces that defined not in all services', async () =>
           {
             node(id: "Talent/1") {
               __typename
-              ... on Role {
+              ... on CompanyRepresentative {
                 id
                 __typename
               }
-              ... on CompanyRepresentative {
-                id
-              }
               ... on Staff {
                 id
+                __typename
               }
               ... on Talent {
                 id
+                __typename
               }
               ... on TalentPartner {
                 id
+                __typename
               }
               ... on Leader {
                 id
+                __typename
               }
               ... on ReferralPartner {
                 id
+                __typename
               }
             }
           }
@@ -6185,30 +6187,48 @@ it('handles value type interfaces that defined not in all services', async () =>
         Flatten(path: "node") {
           Fetch(service: "staffSchema") {
             {
-              ... on Role {
-                __typename
-              }
               ... on CompanyRepresentative {
+                __typename
                 id
               }
               ... on Staff {
+                __typename
                 id
               }
               ... on Talent {
+                __typename
                 id
               }
               ... on TalentPartner {
+                __typename
                 id
               }
               ... on Leader {
+                __typename
                 id
               }
               ... on ReferralPartner {
+                __typename
                 id
               }
             } =>
             {
-              ... on Role {
+              ... on CompanyRepresentative {
+                fullName
+              }
+              ... on Staff {
+                fullName
+              }
+              ... on Talent {
+                fullName
+              }
+              ... on TalentPartner {
+                fullName
+              }
+              ... on Leader {
+                fullName
+              }
+              ... on ReferralPartner {
                 fullName
               }
             }
@@ -6219,14 +6239,9 @@ it('handles value type interfaces that defined not in all services', async () =>
   `);
   expect(errors).toBeUndefined();
   expect(data).toEqual({
-    nodes: [
-      {
-        id: 'Video/1',
-      },
-      {
-        id: 'Audio/1',
-        url: 'https://foobar.com/audios/1',
-      },
-    ],
+    node: {
+      id: 'Talent/1',
+      fullName: 'Foobar',
+    },
   });
 });

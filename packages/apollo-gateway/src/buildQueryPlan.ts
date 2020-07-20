@@ -314,7 +314,7 @@ function splitRootFields(
     return group;
   }
 
-  splitFields(context, [], fields, field => {
+  splitFields(context, [], fields, null, field => {
     const { scope, fieldNode, fieldDef } = field;
     const { parentType } = scope;
 
@@ -369,7 +369,7 @@ function splitRootFieldsSerially(
     return group;
   }
 
-  splitFields(context, [], fields, field => {
+  splitFields(context, [], fields, null, field => {
     const { scope, fieldNode, fieldDef } = field;
     const { parentType } = scope;
 
@@ -393,12 +393,11 @@ function splitSubfields(
   fields: FieldSet,
   parentGroup: FetchGroup,
 ) {
-  splitFields(context, path, fields, field => {
+  splitFields(context, path, fields, parentGroup, field => {
     const { scope, fieldNode, fieldDef } = field;
     const { parentType } = scope;
 
     let baseService, owningService;
-
     const parentTypeFederationMetadata = getFederationMetadata(parentType);
     if (parentTypeFederationMetadata?.isValueType) {
       baseService = parentGroup.serviceName;
@@ -511,7 +510,8 @@ function splitFields(
   context: QueryPlanningContext,
   path: ResponsePath,
   fields: FieldSet,
-  groupForField: (field: Field<GraphQLObjectType>) => FetchGroup | null,
+  parentGroup: FetchGroup | null,
+  groupForField: (field: Field<GraphQLObjectType>, ) => FetchGroup | null,
 ) {
   for (const fieldsForResponseName of groupByResponseName(fields).values()) {
     for (const [parentType, fieldsForParentType] of groupByParentType(fieldsForResponseName)) {
@@ -562,44 +562,46 @@ function splitFields(
         /**
          * The following is an optimization to prevent an explosion of type
          * conditions to services when it isn't needed. If all possible runtime
-         * types can be fufilled by only one service then we don't need to
+         * types can be fulfilled by only one service then we don't need to
          * expand the fields into unique type conditions.
          */
 
-        // Collect all of the field defs on the possible runtime types
-        const possibleFieldDefs = scope.possibleTypes.map(
-          runtimeType => context.getFieldDef(runtimeType, field.fieldNode),
-        );
+        if (parentGroup) {
+          // Collect all of the field defs on the possible runtime types
+          const possibleFieldDefs = scope.possibleTypes.map(
+            runtimeType => context.getFieldDef(runtimeType, field.fieldNode),
+          );
 
-        // If none of the field defs have a federation property, this interface's
-        // implementors can all be resolved within the same service.
-        const hasNoExtendingFieldDefs = !possibleFieldDefs.some(
-          getFederationMetadata,
-        );
+          // If none of the field defs have a federation property, this interface's
+          // implementors can all be resolved within the same service.
+          const hasNoExtendingFieldDefs = !possibleFieldDefs.some(
+            getFederationMetadata,
+          );
 
-        // With no extending field definitions, we can engage the optimization
-        if (hasNoExtendingFieldDefs) {
-          const findEnclosingService = (scope?: Scope<GraphQLCompositeType>): string | null => {
-            if (!scope) {
-              return null;
-            }
-            const service = context.getOwningService(scope.parentType as GraphQLObjectType, fieldDef)
-            return service || findEnclosingService(scope.enclosingScope);
-          };
-          const currentService = findEnclosingService(field.scope);
-          if (currentService) {
-            const allPossibleTypesAreLocal = scope.possibleTypes.every(
-              possibleType =>
-                context.getOwningService(possibleType, fieldDef) === currentService
-            );
-            if (allPossibleTypesAreLocal) {
-              const group = groupForField(field as Field<GraphQLObjectType>);
-              if (group) {
-                group.fields.push(
-                  completeField(context, scope, group, path, fieldsForResponseName)
-                );
+          // With no extending field definitions, we can engage the optimization
+          if (hasNoExtendingFieldDefs) {
+            const findEnclosingService = (scope?: Scope<GraphQLCompositeType>): string | null => {
+              if (!scope) {
+                return null;
               }
-              continue;
+              const service = context.getOwningService(scope.parentType as GraphQLObjectType, fieldDef)
+              return service || findEnclosingService(scope.enclosingScope);
+            };
+            const currentService = findEnclosingService(field.scope);
+            if (currentService && currentService === parentGroup.serviceName) {
+              const allPossibleTypesAreLocal = scope.possibleTypes.every(
+                possibleType =>
+                  context.getOwningService(possibleType, fieldDef) === currentService
+              );
+              if (allPossibleTypesAreLocal) {
+                const group = groupForField(field as Field<GraphQLObjectType>);
+                if (group) {
+                  group.fields.push(
+                    completeField(context, scope, group, path, fieldsForResponseName)
+                  );
+                }
+                continue;
+              }
             }
           }
         }
@@ -621,7 +623,7 @@ function splitFields(
             fieldNode: field.fieldNode,
             fieldDef,
           });
-          if (group) { groupsByRuntimeParentTypes.add(group, runtimeParentType, ); }
+          if (group) { groupsByRuntimeParentTypes.add(group, runtimeParentType); }
         }
 
         // We add the field separately for each runtime parent type.
