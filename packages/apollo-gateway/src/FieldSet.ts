@@ -46,7 +46,7 @@ export function matchesField(field: Field) {
   };
 }
 
-export const isEmpty = (keyFields: FieldSet) => (
+export const isEmptyOrTypenameOnly = (keyFields: FieldSet) => (
   keyFields.length === 0 ||
     (keyFields.length === 1 && keyFields[0].fieldDef.name === '__typename')
 );

@@ -38,7 +38,7 @@ import {
   matchesField,
   selectionSetFromFieldSet,
   Scope,
-  isEmpty as isEmptyFieldSet
+  isEmptyOrTypenameOnly
 } from './FieldSet';
 import {
   FetchNode,
@@ -435,7 +435,7 @@ function splitSubfields(
           parentType,
           serviceName: parentGroup.serviceName,
         });
-        if (isEmptyFieldSet(keyFields)) {
+        if (isEmptyOrTypenameOnly(keyFields)) {
           // Only __typename key found.
           // In some cases, the parent group does not have any @key directives.
           // Fall back to owning group's keys
@@ -444,7 +444,7 @@ function splitSubfields(
             serviceName: owningService,
           });
 
-          if(isEmptyFieldSet(keyFields)) { return null; }
+          if(isEmptyOrTypenameOnly(keyFields)) { return null; }
         }
         return parentGroup.dependentGroupForService(owningService, keyFields);
       }
