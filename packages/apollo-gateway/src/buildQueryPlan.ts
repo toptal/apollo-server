@@ -38,6 +38,7 @@ import {
   matchesField,
   selectionSetFromFieldSet,
   Scope,
+  isEmptyOrTypenameOnly
 } from './FieldSet';
 import {
   FetchNode,
@@ -313,7 +314,7 @@ function splitRootFields(
     return group;
   }
 
-  splitFields(context, [], fields, field => {
+  splitFields(context, [], fields, null, field => {
     const { scope, fieldNode, fieldDef } = field;
     const { parentType } = scope;
 
@@ -368,7 +369,7 @@ function splitRootFieldsSerially(
     return group;
   }
 
-  splitFields(context, [], fields, field => {
+  splitFields(context, [], fields, null, field => {
     const { scope, fieldNode, fieldDef } = field;
     const { parentType } = scope;
 
@@ -380,7 +381,6 @@ function splitRootFieldsSerially(
         fieldNode,
       );
     }
-
     return groupForField(owningService);
   });
 
@@ -393,12 +393,11 @@ function splitSubfields(
   fields: FieldSet,
   parentGroup: FetchGroup,
 ) {
-  splitFields(context, path, fields, field => {
+  splitFields(context, path, fields, parentGroup, field => {
     const { scope, fieldNode, fieldDef } = field;
     const { parentType } = scope;
 
     let baseService, owningService;
-
     const parentTypeFederationMetadata = getFederationMetadata(parentType);
     if (parentTypeFederationMetadata?.isValueType) {
       baseService = parentGroup.serviceName;
@@ -436,11 +435,7 @@ function splitSubfields(
           parentType,
           serviceName: parentGroup.serviceName,
         });
-        if (
-          keyFields.length === 0 ||
-          (keyFields.length === 1 &&
-            keyFields[0].fieldDef.name === '__typename')
-        ) {
+        if (isEmptyOrTypenameOnly(keyFields)) {
           // Only __typename key found.
           // In some cases, the parent group does not have any @key directives.
           // Fall back to owning group's keys
@@ -448,6 +443,8 @@ function splitSubfields(
             parentType,
             serviceName: owningService,
           });
+
+          if(isEmptyOrTypenameOnly(keyFields)) { return null; }
         }
         return parentGroup.dependentGroupForService(owningService, keyFields);
       }
@@ -513,7 +510,8 @@ function splitFields(
   context: QueryPlanningContext,
   path: ResponsePath,
   fields: FieldSet,
-  groupForField: (field: Field<GraphQLObjectType>) => FetchGroup,
+  parentGroup: FetchGroup | null,
+  groupForField: (field: Field<GraphQLObjectType>, ) => FetchGroup | null,
 ) {
   for (const fieldsForResponseName of groupByResponseName(fields).values()) {
     for (const [parentType, fieldsForParentType] of groupByParentType(fieldsForResponseName)) {
@@ -547,57 +545,63 @@ function splitFields(
         // If parent type is an object type, we can directly look for the right
         // group.
         const group = groupForField(field as Field<GraphQLObjectType>);
-        group.fields.push(
-          completeField(
-            context,
-            scope as Scope<typeof parentType>,
-            group,
-            path,
-            fieldsForParentType,
-          ),
-        );
+        if (group) {
+          group.fields.push(
+            completeField(
+              context,
+              scope as Scope<typeof parentType>,
+              group,
+              path,
+              fieldsForParentType,
+            ),
+          );
+        }
       } else {
         // For interfaces however, we need to look at all possible runtime types.
 
         /**
          * The following is an optimization to prevent an explosion of type
          * conditions to services when it isn't needed. If all possible runtime
-         * types can be fufilled by only one service then we don't need to
+         * types can be fulfilled by only one service then we don't need to
          * expand the fields into unique type conditions.
          */
 
-        // Collect all of the field defs on the possible runtime types
-        const possibleFieldDefs = scope.possibleTypes.map(
-          runtimeType => context.getFieldDef(runtimeType, field.fieldNode),
-        );
+        if (parentGroup) {
+          // Collect all of the field defs on the possible runtime types
+          const possibleFieldDefs = scope.possibleTypes.map(
+            runtimeType => context.getFieldDef(runtimeType, field.fieldNode),
+          );
 
-        // If none of the field defs have a federation property, this interface's
-        // implementors can all be resolved within the same service.
-        const hasNoExtendingFieldDefs = !possibleFieldDefs.some(
-          getFederationMetadata,
-        );
+          // If none of the field defs have a federation property, this interface's
+          // implementors can all be resolved within the same service.
+          const hasNoExtendingFieldDefs = !possibleFieldDefs.some(
+            getFederationMetadata,
+          );
 
-        // With no extending field definitions, we can engage the optimization
-        if (hasNoExtendingFieldDefs) {
-          const findEnclosingService = (scope?: Scope<GraphQLCompositeType>): string | null => {
-            if (!scope) {
-              return null;
-            }
-            const service = context.getOwningService(scope.parentType as GraphQLObjectType, fieldDef)
-            return service || findEnclosingService(scope.enclosingScope);
-          };
-          const currentService = findEnclosingService(field.scope);
-          if (currentService) {
-            const allPossibleTypesAreLocal = scope.possibleTypes.every(
-              possibleType =>
-                context.getOwningService(possibleType, fieldDef) === currentService
-            );
-            if (allPossibleTypesAreLocal) {
-              const group = groupForField(field as Field<GraphQLObjectType>);
-              group.fields.push(
-                completeField(context, scope, group, path, fieldsForResponseName)
+          // With no extending field definitions, we can engage the optimization
+          if (hasNoExtendingFieldDefs) {
+            const findEnclosingService = (scope?: Scope<GraphQLCompositeType>): string | null => {
+              if (!scope) {
+                return null;
+              }
+              const service = context.getOwningService(scope.parentType as GraphQLObjectType, fieldDef)
+              return service || findEnclosingService(scope.enclosingScope);
+            };
+            const currentService = findEnclosingService(field.scope);
+            if (currentService && currentService === parentGroup.serviceName) {
+              const allPossibleTypesAreLocal = scope.possibleTypes.every(
+                possibleType =>
+                  context.getOwningService(possibleType, fieldDef) === currentService
               );
-              continue;
+              if (allPossibleTypesAreLocal) {
+                const group = groupForField(field as Field<GraphQLObjectType>);
+                if (group) {
+                  group.fields.push(
+                    completeField(context, scope, group, path, fieldsForResponseName)
+                  );
+                }
+                continue;
+              }
             }
           }
         }
@@ -614,14 +618,12 @@ function splitFields(
             runtimeParentType,
             field.fieldNode,
           );
-          groupsByRuntimeParentTypes.add(
-            groupForField({
-              scope: context.newScope(runtimeParentType, scope),
-              fieldNode: field.fieldNode,
-              fieldDef,
-            }),
-            runtimeParentType,
-          );
+          const group = groupForField({
+            scope: context.newScope(runtimeParentType, scope),
+            fieldNode: field.fieldNode,
+            fieldDef,
+          });
+          if (group) { groupsByRuntimeParentTypes.add(group, runtimeParentType); }
         }
 
         // We add the field separately for each runtime parent type.
