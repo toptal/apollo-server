@@ -81,3 +81,35 @@ it('handles value types interfaces which have implementation with orphan types i
   expect(errors).toBeUndefined();
   expect(data).toEqual({ error: { code: 'audioErrorCode' } });
 });
+
+it('handles value types interfaces when one the fields is __typename', async () => {
+  const query = `#graphql
+    query q {
+      error {
+        __typename
+      }
+    }
+  `;
+  const variables = {};
+  const { queryPlan, errors, data } = await execute({ query, variables }, [
+    videoService,
+    audioService,
+  ]);
+
+  expect(queryPlan).toMatchInlineSnapshot(`
+    QueryPlan {
+      Fetch(service: "audioService") {
+        {
+          error {
+            __typename
+            ... on AudioError {
+              __typename
+            }
+          }
+        }
+      },
+    }
+  `);
+  expect(errors).toBeUndefined();
+  expect(data).toEqual({ error: { code: 'audioErrorCode' } });
+});
